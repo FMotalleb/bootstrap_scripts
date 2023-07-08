@@ -1,0 +1,68 @@
+#!/bin/bash
+function addToPath() {
+    if [[ $PATH =~ $1 ]]; then return 0; fi
+    export PATH="$1:$PATH"
+}
+
+function php() {
+    docker run \
+        -it \
+        --rm \
+        --network host \
+        -v .:/var/www \
+        fmotalleb/php_env \
+        /bin/bash -c "cd /var/www && php $*"
+}
+
+function npm() {
+    docker run \
+        -it \
+        --rm \
+        -e https_proxy=http://31.59.32.224:7890 -e http_proxy=http://31.59.32.224:7890 -e all_proxy=socks5://31.59.32.224:7890 \
+        --network host \
+        -v .:/app \
+        node:16.15 \
+        /bin/bash -c "cd /app && npm $*"
+}
+
+function node() {
+    docker run \
+        -it \
+        --rm \
+        --network host \
+        -v .:/app \
+        node:16.15 \
+        /bin/bash -c "cd /app && node $*"
+}
+
+function serve() {
+    REVERT=0
+    WORKING_DIR=.
+    FINAL_DIR="/var/www"
+    if [ $1 ]; then
+        WORKING_DIR=$1
+        FINAL_DIR="/var/www/html"
+        echo serving $1
+    else
+        if [ -d public/ ]; then
+            if [ -d html/ ]; then
+                echo Found html directory ignoring public to html conversion
+            else
+                REVERT=1
+                cp -lr public html
+            fi
+        fi
+    fi
+    trap 'continue' SIGINT
+    docker run \
+        -it \
+        --name serve \
+        --rm \
+        -p80:80 \
+        -v ~/.var/docker/php.custom.ini:/usr/local/etc/php/conf.d/custom.ini \
+        -v "$WORKING_DIR":"$FINAL_DIR" \
+        fmotalleb/serve
+    if [ $REVERT == 1 ]; then
+        rm -rf html
+    fi
+}
